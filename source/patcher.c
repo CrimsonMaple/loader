@@ -1,9 +1,9 @@
 #include <3ds.h>
-#include <string.h>
 #include <wchar.h>
 #include "patcher.h"
 #include "ifile.h"
 #include "fsldr.h"
+#include "memory.h"
 
 // Below is stolen from http://en.wikipedia.org/wiki/Boyer%E2%80%93Moore_string_search_algorithm
 
@@ -177,7 +177,18 @@ static int patch_memory(start, size, pattern, patsize, offset, replace, repsize,
     return i;
 }
 
-int patch_code(u64 progid, u8 *code, u32 size){
+static u32 findFunctionStart(u8 *code, u32 pos)
+{
+    while(pos >= 4)
+    {
+        pos -= 4;
+        if(*(u16 *)(code + pos + 2) == 0xE92D) return pos;
+    }
+
+    return 0xFFFFFFFF;
+}
+
+int patch_code(u64 progid, u16 progver, u32 textSize, u8 *code, u32 size){
     //File vars
     IFile fp;
     FS_Path apath;
@@ -220,7 +231,74 @@ int patch_code(u64 progid, u8 *code, u32 size){
     end:
     IFile_Close(&fp);
     
-    //Hardcoding Rei string here so it cant be changed ;^)
+    if(progid == 0x0004003000008F02LL || //USA Home Menu
+       progid == 0x0004003000008202LL || //JPN Home Menu
+       progid == 0x0004003000009802LL || //EUR Home Menu
+       progid == 0x000400300000A902LL || //KOR Home Menu
+       progid == 0x000400300000A102LL || //CHN Home Menu
+       progid == 0x000400300000B102LL)   //TWN Home Menu
+    {
+        bool applyRegionFreePatch = true;
+
+        switch(progid)
+        {
+            case 0x0004003000008F02LL: //USA Home Menu
+            case 0x0004003000008202LL: //JPN Home Menu
+            case 0x0004003000009802LL: //EUR Home Menu
+                if(progver <= 4) applyRegionFreePatch = false;
+                break;
+            case 0x000400300000A902LL: //KOR Home Menu
+                if(!progver) applyRegionFreePatch = false;
+                break;
+        }
+
+        if(applyRegionFreePatch)
+        {
+            static const u8 pattern[] = {
+                0x0A, 0x0C, 0x00, 0x10
+            },
+                            patch[] = {
+                0x01, 0x00, 0xA0, 0xE3, 0x1E, 0xFF, 0x2F, 0xE1
+            };
+
+            //Patch SMDH region check
+            patch_memory(code, textSize, pattern, sizeof(pattern), -31, patch, sizeof(patch), 1);
+        }
+
+        //Patch SMDH region check for manuals
+        u32 i;
+        for(i = 4; i < textSize; i += 4)
+        {
+            u32 *code32 = (u32 *)(code + i);
+            if(code32[1] == 0xE1A0000D && (*code32 & 0xFFFFFF00) == 0x0A000000 && (code32[-1] & 0xFFFFFF00) == 0xE1110000)
+                {
+                    *code32 = 0xE320F000;
+                    break;
+                }
+        }
+
+        if(i == textSize) return 1; // Add a shutdown here.
+
+        //Patch DS flashcart whitelist check
+        static const u8 pattern[] = {
+            0x10, 0xD1, 0xE5, 0x08, 0x00, 0x8D
+        };
+
+        u8 *temp = memsearch(code, pattern, textSize, sizeof(pattern));
+
+        if(temp == NULL) return 1; // Also Shutdown
+
+        u32 additive = findFunctionStart(code, (u32)(temp - code - 1));
+
+        if(additive == 0xFFFFFFFF) return 1;
+
+        u32 *off = (u32 *)(code + additive);
+
+        off[0] = 0xE3A00000; //mov r0, #0
+        off[1] = 0xE12FFF1E; //bx lr
+    }
+    
+    // Patch System Version Strings.
     switch(progid){
         case 0x0004001000020000LL:  //JPN MSET
         case 0x0004001000021000LL:  //USA MSET
@@ -230,11 +308,14 @@ int patch_code(u64 progid, u8 *code, u32 size){
         case 0x0004001000028000LL:  //TWN MSET
         {
             static const char* ver_string_pattern = u"Ver.";
+            
+            #ifdef SILENT_MODE
+            break;
+            #endif
+
             static const char* ver_string_patch = u"\uE024Rei";
-            patch_memory(code, size, 
-            ver_string_pattern, 8, 0, 
-            ver_string_patch, 8, 1
-            );
+            
+            patch_memory(code, size, ver_string_pattern, 8, 0, ver_string_patch, 8, 1);
             break;
         }
     }
