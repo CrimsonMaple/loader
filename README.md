@@ -29,6 +29,12 @@ found in your decrypted FIRM dump.
 Once you have a NCCH of the right size, just replace it in your decrypted FIRM 
 and find a way to launch it (for example with ReiNAND).
 
+## Build Flags
+
+SILENT_MODE: No Version String Patch. Made using "make SILENT_MODE=1"
+
+KECLEON_MODE: No Version String, Out Of Region Carts, or Flashcart patches. Made using "make KECLEON_MODE=1"
+
 **Credits**
  - Yifanlu for the original implementation of loader
  - Steveice10 for helping me quite a bit with understanding FSUSER functions!

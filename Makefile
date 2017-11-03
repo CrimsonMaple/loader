@@ -41,12 +41,19 @@ LDFLAGS	=	-flto -Xlinker --defsym="__start__=0x14000000" -specs=3dsx.specs $(ARC
 
 LIBS	:= -lctru
 
+ifeq ($(SILENT_MODE), 1)
+    CFLAGS += -DSILENT_MODE
+endif
+
+ifeq ($(KECLEON_MODE), 1)
+    CFLAGS += -DSILENT_MODE -DKECLEON_MODE
+endif
+
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
 # include and lib
 #---------------------------------------------------------------------------------
 LIBDIRS	:= $(CTRULIB)
-
 
 #---------------------------------------------------------------------------------
 # no real need to edit anything past this point unless you need to add additional

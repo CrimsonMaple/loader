@@ -3,7 +3,7 @@
 #include "patcher.h"
 #include "ifile.h"
 #include "fsldr.h"
-#include "memory.h"
+//#include "memory.h"
 
 // Below is stolen from http://en.wikipedia.org/wiki/Boyer%E2%80%93Moore_string_search_algorithm
 
@@ -239,6 +239,9 @@ int patch_code(u64 progid, u16 progver, u32 textSize, u8 *code, u32 size){
        progid == 0x000400300000B102LL)   //TWN Home Menu
     {
         bool applyRegionFreePatch = true;
+        #ifdef KECLEON_MODE
+        applyRegionFreePatch = false;
+        #endif
 
         switch(progid)
         {
@@ -270,21 +273,25 @@ int patch_code(u64 progid, u16 progver, u32 textSize, u8 *code, u32 size){
         for(i = 4; i < textSize; i += 4)
         {
             u32 *code32 = (u32 *)(code + i);
-            if(code32[1] == 0xE1A0000D && (*code32 & 0xFFFFFF00) == 0x0A000000 && (code32[-1] & 0xFFFFFF00) == 0xE1110000)
-                {
+            if(code32[1] == 0xE1A0000D && (*code32 & 0xFFFFFF00) == 0x0A000000 && (code32[-1] & 0xFFFFFF00) == 0xE1110000){
                     *code32 = 0xE320F000;
                     break;
                 }
         }
 
         if(i == textSize) return 1; // Add a shutdown here.
+        
+        #ifdef KECLEON_MODE
+        goto exit;
+        #endif
 
         //Patch DS flashcart whitelist check
         static const u8 pattern[] = {
             0x10, 0xD1, 0xE5, 0x08, 0x00, 0x8D
         };
 
-        u8 *temp = memsearch(code, pattern, textSize, sizeof(pattern));
+        // Test
+        u8 *temp = boyer_moore(code, textSize, pattern, sizeof(pattern));
 
         if(temp == NULL) return 1; // Also Shutdown
 
@@ -296,6 +303,9 @@ int patch_code(u64 progid, u16 progver, u32 textSize, u8 *code, u32 size){
 
         off[0] = 0xE3A00000; //mov r0, #0
         off[1] = 0xE12FFF1E; //bx lr
+        
+        exit:
+            return 0;
     }
     
     // Patch System Version Strings.
@@ -308,12 +318,11 @@ int patch_code(u64 progid, u16 progver, u32 textSize, u8 *code, u32 size){
         case 0x0004001000028000LL:  //TWN MSET
         {
             static const char* ver_string_pattern = u"Ver.";
+            static const char* ver_string_patch = u"\uE024Rei";
             
             #ifdef SILENT_MODE
             break;
             #endif
-
-            static const char* ver_string_patch = u"\uE024Rei";
             
             patch_memory(code, size, ver_string_pattern, 8, 0, ver_string_patch, 8, 1);
             break;
