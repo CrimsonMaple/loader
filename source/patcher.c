@@ -3,7 +3,6 @@
 #include "patcher.h"
 #include "ifile.h"
 #include "fsldr.h"
-//#include "memory.h"
 
 // Below is stolen from http://en.wikipedia.org/wiki/Boyer%E2%80%93Moore_string_search_algorithm
 
@@ -290,7 +289,6 @@ int patch_code(u64 progid, u16 progver, u32 textSize, u8 *code, u32 size){
             0x10, 0xD1, 0xE5, 0x08, 0x00, 0x8D
         };
 
-        // Test
         u8 *temp = boyer_moore(code, textSize, pattern, sizeof(pattern));
 
         if(temp == NULL) return 1; // Also Shutdown
